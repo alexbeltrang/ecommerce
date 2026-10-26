@@ -1,0 +1,154 @@
+<section class="panel">
+  <h1>Reportes e indicadores</h1>
+  <p>Solo administradores. Ventas al entregar; cobros y reembolsos por fecha de operación. Fechas de Colombia (UTC−05:00).</p>
+  <nav class="tabs" aria-label="Tipos de reporte">
+    @for (tab of views; track tab.id) {
+      <button type="button" [class.secondary]="view() !== tab.id" [attr.aria-pressed]="view() === tab.id"
+        [disabled]="busy() || downloading()" (click)="select(tab.id)">{{ tab.name }}</button>
+    }
+  </nav>
+</section>
+<form class="panel" [formGroup]="form" (ngSubmit)="load()">
+  <fieldset [disabled]="busy() || downloading()">
+    <legend>Filtros de consulta</legend>
+    <div class="form-grid">
+      @if (view() !== 'inventory') {
+        <label>Desde (Colombia, incluido)<input type="date" formControlName="from" min="1900-01-01" max="9998-12-31" required /></label>
+        <label>Hasta (Colombia, incluido)<input type="date" formControlName="to" min="1900-01-01" max="9998-12-31" required /></label>
+        <label>Datos<select formControlName="dataSet"><option value="real">Solo reales</option><option value="test">Solo pruebas</option><option value="all">Reales y pruebas</option></select></label>
+      }
+      @if (view() !== 'sales') {
+        <label>Buscar nombre o {{ view() === 'promotions' ? 'código' : 'SKU' }}<input formControlName="search" maxlength="100" /></label>
+      }
+      @if (view() === 'products') {
+        <label>Ordenar por<select formControlName="sort"><option value="units">Unidades entregadas</option><option value="revenue">Mercancía neta de reembolsos</option><option value="margin">Margen estimado</option></select></label>
+      }
+      @if (view() === 'inventory') {
+        <label>Categoría actual<select formControlName="categoryId"><option value="">Todas</option>
+          @for (category of categories(); track category.id) { <option [value]="category.id">{{ category.name }}{{ category.isActive ? '' : ' (inactiva)' }}</option> }
+        </select></label>
+        <label>Existencias<select formControlName="stock"><option value="all">Todas</option><option value="out">Agotados (cero)</option><option value="low">Stock bajo (positivo hasta umbral)</option></select></label>
+        <label>Visibilidad<select formControlName="visibility"><option value="all">Todas</option><option value="active">Publicados</option><option value="inactive">No publicados</option></select></label>
+      }
+    </div>
+    <p class="muted">{{ view() === 'inventory' ? 'Consulta las existencias actuales, no un corte histórico. Incluye productos de demostración si cumplen los filtros; no existe marca de prueba por producto.' : 'Máximo 366 días inclusivos. Los pedidos de prueba se excluyen por defecto.' }}</p>
+    <div class="actions"><button>Consultar / actualizar</button>
+      <button type="button" class="secondary" [disabled]="!applied()" (click)="export()">Exportar todo a CSV</button></div>
+  </fieldset>
+</form>
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (message()) { <p class="success" role="status">{{ message() }}</p> }
+@if (busy() || downloading()) { <p role="status">{{ downloading() ? 'Preparando exportación…' : 'Calculando reporte…' }}</p> }
+@if (period(); as range) {
+  <section class="panel">
+    <p><strong>Periodo aplicado: {{ range.from }} a {{ range.to }}</strong> · {{ range.timeZone }}.
+      Datos: {{ range.dataSet === 'real' ? 'reales' : range.dataSet === 'test' ? 'PRUEBAS' : 'REALES Y PRUEBAS' }}.
+      Generado: {{ range.generatedAtUtc | date:'medium':'-0500' }} (Colombia).</p>
+    @if (range.dataSet !== 'real') { <p class="warning">Este reporte incluye pedidos de prueba; no lo interpretes como resultado comercial real.</p> }
+    @for (warning of range.warnings; track warning) { <p class="warning" role="alert">{{ warning }}</p> }
+    @if (applied(); as filters) {
+      @if (view() !== 'sales') { <p>Busqueda aplicada: {{ filters.search || 'Sin filtro' }}.</p> }
+    }
+  </section>
+}
+@if (sales(); as report) {
+  <section class="panel">
+    <h2>Resumen del periodo</h2>
+    <div class="form-grid">
+      <div><h3>Pedidos creados</h3><strong>{{ report.totals.createdOrders }}</strong><p>No equivalen a ventas.</p></div>
+      <div><h3>Pedidos entregados</h3><strong>{{ report.totals.deliveredOrders }}</strong><p>Sin cobro: {{ report.totals.freeDeliveredOrders }}.</p></div>
+      <div><h3>Venta entregada</h3><strong>{{ report.totals.salesTotal | reportCop }}</strong><p>Incluye envío; antes de reembolsos posteriores.</p></div>
+      <div><h3>Cobros confirmados</h3><strong>{{ report.totals.collections | reportCop }}</strong><p>No incluye pedidos sin cobro.</p></div>
+      <div><h3>Reembolsos registrados</h3><strong>{{ report.totals.refunds | reportCop }}</strong></div>
+      <div><h3>Flujo neto de dinero</h3><strong>{{ report.totals.netCash | reportCop }}</strong><p>Cobros menos reembolsos; puede ser negativo.</p></div>
+      <div><h3>Margen estimado por eventos</h3><strong>{{ report.totals.estimatedMargin | reportCop }}</strong><p>No es utilidad contable.</p></div>
+    </div>
+    <dl class="totals">
+      <dt>Mercancía entregada después de descuentos</dt><dd>{{ report.totals.merchandiseSales | reportCop }}</dd>
+      <dt>Envío de pedidos entregados</dt><dd>{{ report.totals.shippingSales | reportCop }}</dd>
+      <dt>Ofertas de productos entregados</dt><dd>{{ report.totals.productDiscounts | reportCop }}</dd>
+      <dt>Beneficios adicionales de pedidos entregados</dt><dd>{{ report.totals.promotionDiscounts | reportCop }}</dd>
+      <dt>Reembolsos de mercancía posventa</dt><dd>{{ report.totals.merchandiseRefunds | reportCop }}</dd>
+      <dt>Costo histórico de unidades entregadas</dt><dd>{{ report.totals.deliveredCost | reportCop }}</dd>
+      <dt>Costo histórico recuperado por unidades repuestas</dt><dd>{{ report.totals.restockedCost | reportCop }}</dd>
+    </dl>
+  </section>
+  <section class="panel table-scroll">
+    <h2>Evolución diaria</h2>
+    <table><thead><tr><th>Día Colombia</th><th>Venta entregada</th><th>Creados / entregados</th><th>Cobros</th><th>Reembolsos</th><th>Flujo neto</th><th>Margen estimado</th></tr></thead>
+      <tbody>@for (day of report.days; track day.date) {
+        <tr><td>{{ day.date }}</td><td>{{ day.metrics.salesTotal | reportCop }}<br />
+          <meter min="0" max="100" [value]="bar(day.metrics.salesTotal)" [attr.aria-label]="'Ventas relativas del ' + day.date"></meter></td>
+          <td>{{ day.metrics.createdOrders }} / {{ day.metrics.deliveredOrders }}</td><td>{{ day.metrics.collections | reportCop }}</td>
+          <td>{{ day.metrics.refunds | reportCop }}</td><td>{{ day.metrics.netCash | reportCop }}</td><td>{{ day.metrics.estimatedMargin | reportCop }}</td></tr>
+      }</tbody>
+    </table>
+  </section>
+  <section class="panel table-scroll">
+    <h2>Estado actual de pedidos creados en el periodo</h2>
+    <p>No es un historial de cambios de estado; los importes solicitados incluyen pedidos todavía no entregados.</p>
+    <table><thead><tr><th>Estado actual</th><th>Pedidos</th><th>Importe solicitado, no ventas</th></tr></thead>
+      <tbody>@for (row of report.statuses; track row.status) {
+        <tr><td>{{ statuses[row.status] || row.status }}</td><td>{{ row.orders }}</td><td>{{ row.orderAmount | reportCop }}</td></tr>
+      }</tbody></table>
+  </section>
+}
+@if (products(); as report) {
+  <section class="panel table-scroll">
+    <h2>Productos y margen histórico</h2>
+    <p>Incluye productos con entregas, recepciones vendibles o reembolsos posventa en el periodo, aunque su venta sea anterior.
+      Usa nombres y costos históricos, no los valores actuales del catálogo.</p>
+    <table><thead><tr><th>Producto</th><th>Entregadas</th><th>Devueltas / repuestas</th><th>Venta mercancía</th><th>Reembolsos mercancía</th><th>Mercancía neta</th><th>Costo entregado / recuperado</th><th>Margen estimado</th></tr></thead>
+      <tbody>@for (row of report.rows.items; track row.productId || row.sku) {
+        <tr><td>{{ row.name }}<small>{{ row.sku }}</small></td><td>{{ row.deliveredQuantity }}</td><td>{{ row.returnedQuantity }} / {{ row.restockedQuantity }}</td>
+          <td>{{ row.merchandiseSales | reportCop }}</td><td>{{ row.merchandiseRefunds | reportCop }}</td><td>{{ row.netMerchandise | reportCop }}</td>
+          <td>{{ row.deliveredCost | reportCop }} / {{ row.restockedCost | reportCop }}</td><td>{{ row.estimatedMargin | reportCop }}</td></tr>
+      } @empty { <tr><td colspan="8">No hay eventos de productos con estos filtros.</td></tr> }</tbody></table>
+  </section>
+}
+@if (inventory(); as report) {
+  <section class="panel">
+    <h2>Inventario actual</h2>
+    <p>Generado {{ report.generatedAtUtc | date:'medium':'-0500' }} (Colombia). Los totales cubren todos los productos filtrados.</p>
+    @if (applied(); as filters) {
+      <p>Filtros aplicados: búsqueda {{ filters.search || 'sin filtro' }}, stock {{ filters.stock === 'out' ? 'agotados' : filters.stock === 'low' ? 'bajo' : 'todos' }},
+        visibilidad {{ filters.visibility === 'active' ? 'publicados' : filters.visibility === 'inactive' ? 'no publicados' : 'todas' }}{{ filters.categoryId ? ', categoría seleccionada' : ', todas las categorías' }}.</p>
+    }
+    <p>Productos: <strong>{{ report.products }}</strong> · Unidades: <strong>{{ report.units }}</strong> ·
+      Agotados: <strong>{{ report.outOfStock }}</strong> · Stock bajo positivo: <strong>{{ report.lowStock }}</strong>.</p>
+    <p>Valoración al costo actual: <strong>{{ report.stockValue | reportCop }}</strong>. No usa precios de venta ni es valoración contable por lotes.</p>
+    <div class="table-scroll"><table><thead><tr><th>Producto</th><th>Categoría</th><th>Publicado</th><th>Stock / umbral</th><th>Estado</th><th>Costo unitario</th><th>Valor stock</th><th>Acción</th></tr></thead>
+      <tbody>@for (row of report.rows.items; track row.productId) {
+        <tr><td>{{ row.name }}<small>{{ row.sku }}</small></td><td>{{ row.category }}</td><td>{{ row.isPublished ? 'Sí' : 'No' }}</td>
+          <td>{{ row.quantity }} / {{ row.lowStockThreshold }}</td><td>{{ row.state === 'Out' ? 'Agotado' : row.state === 'Low' ? 'Stock bajo' : 'Disponible' }}</td>
+          <td>{{ row.unitCost | reportCop }}</td><td>{{ row.stockValue | reportCop }}</td><td><a [routerLink]="['/admin/productos', row.productId]">Editar</a></td></tr>
+      } @empty { <tr><td colspan="8">No hay productos con estos filtros.</td></tr> }</tbody></table></div>
+  </section>
+}
+@if (promotions(); as report) {
+  <section class="panel table-scroll">
+    <h2>Eventos de promociones y cupones</h2>
+    <p>No equivale a ventas: el uso se consume al crear el pedido. Los usos liberados pueden proceder de pedidos de periodos anteriores.
+      El contador global actual incluye pedidos reales y de prueba y no cambia con estos filtros. Nombre/código son los actuales; importes por uso son históricos.</p>
+    <table><thead><tr><th>Promoción</th><th>Creados</th><th>Liberados</th><th>Creados aún consumidos</th><th>Descuentos otorgados</th><th>Descuentos liberados</th><th>Cupo global actual</th></tr></thead>
+      <tbody>@for (row of report.rows.items; track row.promotionId) {
+        <tr><td><a routerLink="/admin/promociones">{{ row.name }}</a><small>{{ row.code || 'Automática' }} · {{ row.isActive ? 'Activa' : 'Inactiva' }}</small></td>
+          <td>{{ row.usesCreated }}</td><td>{{ row.usesReleased }}</td><td>{{ row.createdUsesStillConsumed }}</td>
+          <td>{{ row.discountsGranted | reportCop }}</td><td>{{ row.discountsReleased | reportCop }}</td><td>{{ row.currentUsedCount }} / {{ row.maxUses ?? 'Sin límite' }}</td></tr>
+      } @empty { <tr><td colspan="7">No hay usos creados o liberados con estos filtros.</td></tr> }</tbody></table>
+  </section>
+}
+@if (pagination(); as page) {
+  <nav class="pagination" aria-label="Páginas del reporte">
+    <button type="button" class="secondary" (click)="changePage(-1)" [disabled]="page.page <= 1 || busy() || downloading()">Anterior</button>
+    <span>{{ page.total }} resultados · Página {{ page.page }}</span>
+    <button type="button" class="secondary" (click)="changePage(1)" [disabled]="page.page * page.pageSize >= page.total || busy() || downloading()">Siguiente</button>
+  </nav>
+}
+<section class="panel">
+  <h2>Cómo interpretar el margen y la exportación</h2>
+  <p>Margen estimado = mercancía entregada − reembolsos de mercancía posventa − costo histórico entregado + costo histórico de devoluciones vendibles repuestas.
+    Cada componente usa la fecha de su evento. Excluye envío, comisiones, impuestos y gastos operativos; no es utilidad contable.</p>
+  <p>El CSV incluye todos los resultados de los filtros aplicados, no los cambios todavía sin consultar. Se genera con datos actuales al exportar.
+    Los importes se conservan como texto entero COP para evitar pérdidas de precisión en hojas de cálculo.</p>
+</section>

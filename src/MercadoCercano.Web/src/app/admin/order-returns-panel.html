@@ -1,0 +1,98 @@
+<section class="panel">
+  <h2>Devoluciones y reembolsos</h2>
+  @if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+  @if (notice()) { <p class="success" role="status">{{ notice() }}</p> }
+  @if (pending() || !storageReady()) {
+    <p class="warning">Hay un intento pendiente de recuperación. No generes otra solicitud tras un timeout sin comprobar el resultado.</p>
+    <div class="actions">
+      @if (pending()) { <button class="secondary" (click)="recover()" [disabled]="busy() || blocked()">Recuperar solicitud</button> }
+      <button class="danger" (click)="discard()" [disabled]="busy() || blocked()">Descartar intento explícitamente</button>
+    </div>
+  }
+  @if (value().order.status === 'Delivered' || value().order.status === 'Shipped') {
+    <details>
+      <summary>Solicitar devolución parcial / retorno de despacho fallido</summary>
+      <p>Tras entregar puedes elegir productos y cantidades. Si el despacho no llegó al cliente, se debe recibir el pedido completo.</p>
+      <form [formGroup]="createForm" (ngSubmit)="create()">
+        <fieldset [disabled]="busy() || blocked() || !storageReady()">
+          <div class="table-scroll"><table>
+            <thead><tr><th>Producto</th><th>Disponibles para devolver</th><th>Cantidad</th></tr></thead>
+            <tbody formArrayName="items">
+              @for (line of createForm.controls.items.controls; track line.controls.orderItemId.value; let index = $index) {
+                @let original = value().operations.lines[index];
+                <tr [formGroupName]="index"><td>{{ original.name }}<small>Saldo neto por devolver: {{ original.refundableAmount | currency:'COP':'symbol-narrow':'1.0-0' }} COP. Incluye descuentos originales.</small></td>
+                  <td>{{ original.returnableQuantity }}</td><td><label>Unidades<input type="number" formControlName="quantity" min="0" [max]="original.returnableQuantity" step="1" /></label></td></tr>
+              }
+            </tbody>
+          </table></div>
+          <label>Reembolso de envío COP<input type="number" formControlName="shippingRefundAmount" min="0" [max]="remainingShipping()" step="1" required />
+            <small>Saldo máximo: {{ remainingShipping() | currency:'COP':'symbol-narrow':'1.0-0' }}. Si no hubo cobro, usa 0.</small></label>
+          <label>Motivo visible para el cliente *<textarea formControlName="reason" maxlength="1000" required></textarea></label>
+          @if (estimate() !== null) { <p>Reembolso calculado estimado: <strong>{{ estimate() | currency:'COP':'symbol-narrow':'1.0-0' }} COP</strong></p> }
+          <button>Registrar solicitud (sin reponer ni devolver dinero)</button>
+        </fieldset>
+      </form>
+    </details>
+  }
+  @for (item of value().operations.returns; track item.summary.id) {
+    <article class="return-card">
+      <h3>{{ item.summary.kind === 'Cancellation' ? 'Reembolso por cancelación' : item.summary.kind === 'FailedDelivery' ? 'Retorno de despacho fallido' : 'Devolución parcial / total' }}</h3>
+      <p><strong>{{ statuses[item.summary.status] }}</strong> · {{ item.summary.refundAmount | currency:'COP':'symbol-narrow':'1.0-0' }} COP</p>
+      <p class="description">{{ item.summary.reason }}</p>
+      @if (item.summary.rejectionReason) { <p class="error">{{ item.summary.rejectionReason }}</p> }
+      <ul>@for (line of item.items; track line.id) {
+        <li>{{ line.name }}: {{ line.quantity }} unidades · repuestas: {{ line.restockedQuantity }}</li>
+      }</ul>
+      <p>Envío incluido en el reembolso: {{ item.shippingRefundAmount | currency:'COP':'symbol-narrow':'1.0-0' }}</p>
+      @if (item.refundReference) { <p>Referencia privada de reembolso: {{ item.refundReference }}</p> }
+      @if (item.summary.kind === 'Cancellation') { <p>La cancelación ya liberó el inventario que correspondía. No se recibe ni repone otra vez.</p> }
+      <div class="actions">
+        @if (item.summary.status === 'Requested') {
+          <button class="secondary" (click)="open(item, 'receive')" [disabled]="busy() || blocked()">Registrar recepción física</button>
+          <button class="danger" (click)="open(item, 'reject')" [disabled]="busy() || blocked()">Rechazar solicitud</button>
+        }
+        @if (item.summary.status === 'Received' && item.summary.refundAmount > 0) {
+          @if (session.user()?.role === 'Administrator') {
+            <button (click)="open(item, 'refund')" [disabled]="busy() || blocked()">Registrar reembolso ya realizado</button>
+          } @else { <p class="warning">El administrador debe registrar el reembolso.</p> }
+        }
+        @if (item.summary.status === 'Received' && item.summary.refundAmount === 0) { <p>Esta solicitud no tiene importe pendiente por reembolsar.</p> }
+      </div>
+      @if (editing(); as edit) {
+        @if (edit.value.summary.id === item.summary.id) {
+          @if (edit.action === 'receive') {
+            <form [formGroup]="receiveForm" (ngSubmit)="apply()">
+              <fieldset [disabled]="busy() || blocked()">
+                <p class="warning">Registra solo cuando hayas recibido todas las unidades solicitadas. Las dañadas no vuelven al inventario.</p>
+                <div formArrayName="items">
+                  @for (line of receiveForm.controls.items.controls; track line.controls.returnItemId.value; let index = $index) {
+                    <div [formGroupName]="index"><label>{{ edit.value.items[index].name }}: unidades en buen estado
+                      <input type="number" formControlName="restockQuantity" min="0" [max]="edit.value.items[index].quantity" step="1" required /></label></div>
+                  }
+                </div>
+                <label class="checkbox"><input type="checkbox" formControlName="receiptConfirmed" /> Recibí todas las unidades de esta solicitud y comprobé su estado. *</label>
+                <button>Guardar recepción y reponer unidades indicadas</button>
+              </fieldset>
+            </form>
+          }
+          @if (edit.action === 'refund') {
+            <form [formGroup]="refundForm" (ngSubmit)="apply()">
+              <fieldset [disabled]="busy() || blocked()">
+                <label>Importe reembolsado COP *<input type="number" formControlName="amount" min="1" max="9000000000000" step="1" required /></label>
+                <label>Referencia privada de la devolución de dinero *<input formControlName="reference" maxlength="160" autocomplete="off" required /></label>
+                <label class="checkbox"><input type="checkbox" formControlName="refundCompleted" /> Ya devolví este importe fuera del sistema y verifiqué el resultado. *</label>
+                <button>Registrar reembolso</button>
+              </fieldset>
+            </form>
+          }
+          @if (edit.action === 'reject') {
+            <form [formGroup]="rejectForm" (ngSubmit)="apply()"><fieldset [disabled]="busy() || blocked()">
+              <label>Motivo público de rechazo *<textarea formControlName="reason" maxlength="1000" required></textarea></label>
+              <button class="danger">Rechazar solicitud sin movimiento de inventario</button>
+            </fieldset></form>
+          }
+        }
+      }
+    </article>
+  } @empty { <p>No hay devoluciones registradas.</p> }
+</section>

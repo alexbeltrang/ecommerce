@@ -1,0 +1,56 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Mercado Cercano: aplicacion completa",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "Compilar API",
+      "program": "${workspaceFolder}\\src\\MercadoCercano.Api\\bin\\Debug\\net10.0\\MercadoCercano.Api.dll",
+      "cwd": "${workspaceFolder}\\src\\MercadoCercano.Api",
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ASPNETCORE_URLS": "http://127.0.0.1:5136",
+        "Logging__LogLevel__Microsoft.Hosting.Lifetime": "Information"
+      },
+      "console": "internalConsole",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "pattern": "\\bNow listening on:\\s+http://127\\.0\\.0\\.1:5136\\b",
+        "action": "startDebugging",
+        "name": "Frontend y Swagger"
+      }
+    },
+    {
+      "name": "Frontend",
+      "presentation": {
+        "hidden": true
+      },
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev -- --open",
+      "cwd": "${workspaceFolder}\\src\\MercadoCercano.Web",
+      "env": {
+        "NO_COLOR": "1",
+        "CI": "true",
+        "NG_CLI_ANALYTICS": "false"
+      }
+    },
+    {
+      "name": "Swagger API",
+      "type": "pwa-chrome",
+      "request": "launch",
+      "url": "http://127.0.0.1:5136/swagger"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Frontend y Swagger",
+      "presentation": {
+        "hidden": true
+      },
+      "configurations": ["Swagger API", "Frontend"],
+      "stopAll": true
+    }
+  ]
+}

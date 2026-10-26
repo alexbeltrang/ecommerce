@@ -1,0 +1,79 @@
+<section class="panel">
+  <h1>Administración de usuarios</h1>
+  <p>Solo cuentas internas. No se borran usuarios ni su historial. Las claves temporales deben cambiarse antes de acceder al portal.</p>
+  <a routerLink="/mi-cuenta">Mi cuenta y cambio de contraseña</a>
+</section>
+<form class="panel filters" (ngSubmit)="search()">
+  <fieldset [disabled]="loading() || busy()">
+    <legend>Buscar cuentas</legend>
+    <div class="form-grid">
+      <label>Nombre o correo<input name="term" [(ngModel)]="term" maxlength="100" /></label>
+      <label>Rol<select name="role" [(ngModel)]="role"><option value="">Todos</option><option value="Administrator">Administrador</option><option value="OrderOperator">Operador de pedidos</option></select></label>
+      <label>Estado<select name="active" [(ngModel)]="active"><option value="">Todos</option><option value="true">Activas</option><option value="false">Inactivas</option></select></label>
+    </div>
+    <button>Buscar</button>
+  </fieldset>
+</form>
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (message()) { <p class="success" role="status">{{ message() }}</p> }
+@if (loading() || busy()) { <p role="status">Procesando usuarios…</p> }
+@if (result(); as page) {
+  <div class="panel table-scroll"><table><thead><tr><th>Cuenta</th><th>Rol</th><th>Estado</th><th>Contraseña</th><th>Creación</th><th>Acción</th></tr></thead>
+    <tbody>@for (user of page.items; track user.id) {
+      <tr><td>{{ user.name }}<small>{{ user.email }}{{ user.id === session.user()?.id ? ' · Mi cuenta' : '' }}</small></td>
+        <td>{{ user.role === 'Administrator' ? 'Administrador' : 'Operador' }}</td><td>{{ user.isActive ? 'Activa' : 'Inactiva' }}</td>
+        <td>{{ user.mustChangePassword ? 'Cambio obligatorio' : 'Definitiva' }}</td><td>{{ user.createdAtUtc | date:'medium' }}</td>
+        <td><button type="button" class="secondary" [disabled]="busy()" (click)="edit(user.id)">Editar / restablecer</button></td></tr>
+    } @empty { <tr><td colspan="6">No hay usuarios con estos filtros.</td></tr> }</tbody></table></div>
+  <nav class="pagination" aria-label="Páginas de usuarios">
+    <button type="button" class="secondary" (click)="changePage(-1)" [disabled]="page.page <= 1 || loading() || busy()">Anterior</button>
+    <span>{{ page.total }} usuarios · Página {{ page.page }}</span>
+    <button type="button" class="secondary" (click)="changePage(1)" [disabled]="page.page * page.pageSize >= page.total || loading() || busy()">Siguiente</button>
+  </nav>
+}
+<section class="panel">
+  <div class="section-title"><h2>{{ editing() ? 'Editar cuenta' : 'Nueva cuenta' }}</h2><button type="button" class="secondary" [disabled]="busy()" (click)="reset()">Nueva / limpiar</button></div>
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <fieldset [disabled]="busy()">
+      <legend>Perfil y permisos</legend>
+      <div class="form-grid">
+        <label>Nombre<input formControlName="name" maxlength="160" autocomplete="off" required /></label>
+        <label>Correo<input type="email" formControlName="email" maxlength="254" autocomplete="off" required /></label>
+        <label>Rol<select formControlName="role"><option value="OrderOperator">Operador de pedidos</option><option value="Administrator">Administrador</option></select></label>
+      </div>
+      <label class="checkbox"><input type="checkbox" formControlName="isActive" /> Cuenta activa</label>
+      @if (!editing()) {
+        <div [formGroup]="credentials" class="form-grid">
+          <label>Contraseña temporal<input type="password" formControlName="password" autocomplete="new-password" minlength="8" maxlength="32" required /></label>
+          <label>Confirmar temporal<input type="password" formControlName="confirmation" autocomplete="new-password" minlength="8" maxlength="32" required /></label>
+        </div>
+      }
+      <p>8–32 caracteres, mayúscula, minúscula, número y carácter especial, sin espacios. Comunica la temporal por un canal privado.</p>
+      @if ((form.touched && form.invalid) || (!editing() && credentials.touched && credentials.invalid)) {
+        <p class="error">Revisa nombre, correo y los requisitos/coincidencia de la contraseña temporal.</p>
+      }
+      @if (editing()) {
+        <p class="warning">Guardar revoca todas las sesiones de la cuenta, también al editar nombre o correo. Si editas tu propia cuenta, volverás al login.
+          No puedes desactivarte, cambiar tu propio rol ni dejar el sistema sin administrador activo.</p>
+      }
+      <button>{{ editing() ? 'Guardar cuenta y revocar sesiones' : 'Crear con cambio de clave obligatorio' }}</button>
+    </fieldset>
+  </form>
+</section>
+@if (editing(); as user) {
+  @if (user.id !== session.user()?.id) {
+    <section class="panel">
+      <h2>Restablecer contraseña de {{ user.name }}</h2>
+      <p>Invalida todas sus sesiones y exige cambiar la temporal al ingresar. No reactiva cuentas inactivas ni envía correos.</p>
+      <form [formGroup]="resetForm" (ngSubmit)="resetPassword()">
+        <fieldset [disabled]="busy()">
+          <label>Nueva temporal<input type="password" formControlName="password" autocomplete="new-password" minlength="8" maxlength="32" required /></label>
+          <label>Confirmar temporal<input type="password" formControlName="confirmation" autocomplete="new-password" minlength="8" maxlength="32" required /></label>
+          @if (resetForm.touched && resetForm.invalid) { <p class="error">Revisa la fortaleza y coincidencia de la contraseña temporal.</p> }
+          <button>Restablecer y cerrar sesiones</button>
+        </fieldset>
+      </form>
+      <p class="muted">Si se pierde la respuesta, recarga el usuario y comprueba el acceso con la temporal elegida antes de repetir el restablecimiento.</p>
+    </section>
+  }
+}

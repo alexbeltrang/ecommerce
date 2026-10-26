@@ -1,0 +1,112 @@
+<div class="section-title"><h1>Finalizar pedido</h1><a routerLink="/carrito">Volver al carrito</a></div>
+@if (loading()) { <p role="status">Cargando opciones de entrega y pago…</p> }
+@if (busy()) { <p role="status">Procesando la solicitud. No cierres la página ni envíes otro pedido…</p> }
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (notice()) { <p class="warning" role="status">{{ notice() }}</p> }
+@if (created(); as order) {
+  <section class="panel"><h2>Pedido registrado: {{ order.orderNumber }}</h2>
+    <p>Guarda este enlace privado para consultar el resultado:</p><a class="secret-link" [href]="receiptUrl()">{{ receiptUrl() }}</a>
+    <p>El negocio todavía debe confirmar el inventario; no envíes otra vez el formulario.</p>
+  </section>
+} @else {
+  @if (intents.error()) { <p class="error" role="alert">{{ intents.error() }}</p> }
+  @if (intents.pending() || !intents.ready()) {
+    <section class="panel">
+      <h2>Hay un intento de compra pendiente</h2>
+      <p>Antes de crear otra compra, recupera el resultado. Reintentar conserva el mismo identificador y no duplica un pedido ya registrado.</p>
+      <div class="actions">
+        @if (intents.pending()) { <button type="button" class="secondary" (click)="recover()" [disabled]="busy()">Recuperar pedido</button> }
+        <button type="button" class="danger" (click)="discardIntent()" [disabled]="busy()">Descartar intento explícitamente</button>
+      </div>
+    </section>
+  }
+  @if (!cart.items().length && cart.ready()) { <p class="panel">Tu carrito está vacío. <a routerLink="/">Ver catálogo</a></p> }
+  @if (!loading() && !settings()) { <button class="secondary" (click)="load()">Reintentar configuración</button> }
+  @if (settings(); as config) {
+    @if (config.isTestConfiguration) { <p class="warning"><strong>MODO DE PRUEBA:</strong> municipios, tarifas e instrucciones son ficticios. No realices pagos ni ingreses información personal real.</p> }
+    <p class="warning">El pedido queda pendiente de confirmación. No reserva existencias y no procesa pagos en línea.</p>
+    @if (cart.items().length && cart.ready()) {
+      <form [formGroup]="form" (ngSubmit)="submit()">
+        <fieldset [disabled]="busy()">
+          <section class="panel">
+            <h2>1. Datos de contacto</h2><p class="muted">* Obligatorio. No guardamos estos campos en el almacenamiento del navegador.</p>
+            <div class="form-grid">
+              <label>Nombre completo *<input formControlName="customerName" autocomplete="name" maxlength="160" required /></label>
+              <label>Teléfono *<input formControlName="phone" type="tel" autocomplete="tel" maxlength="32" required /><small>De 7 a 15 dígitos; admite +, espacios, paréntesis y guiones.</small></label>
+              <label>Correo electrónico<input formControlName="email" type="email" autocomplete="email" maxlength="254" /></label>
+            </div>
+          </section>
+          <section class="panel">
+            <h2>2. Entrega y pago</h2>
+            <div class="form-grid">
+              <label>Modalidad de entrega *<select formControlName="deliveryMethod" (change)="deliveryChanged()">
+                @if (config.pickupEnabled) { <option value="CoordinatedPickup">Recogida coordinada · sin costo</option> }
+                @if (config.localDeliveryEnabled) { <option value="LocalDelivery">Domicilio local</option> }
+                @if (config.carrierShippingEnabled) { <option value="CarrierShipping">Transportadora</option> }
+              </select></label>
+              <label>Método de pago *<select formControlName="paymentMethod" (change)="selectionChanged()">
+                @for (method of config.paymentMethods; track method) { <option [value]="method">{{ payments[method] }}</option> }
+              </select></label>
+            </div>
+            @if (form.controls.deliveryMethod.value === 'CoordinatedPickup') {
+              <p>Municipio de recogida: <strong>{{ config.pickupMunicipality }}</strong></p>
+              <p class="description">{{ config.pickupInstructions }}</p>
+            } @else {
+              <div class="form-grid">
+                @if (form.controls.deliveryMethod.value === 'LocalDelivery' || !config.carrierNationwide) {
+                  <label>Municipio de Colombia *<select formControlName="municipality" (change)="selectionChanged()">
+                    <option value="">Selecciona un municipio</option>
+                    @for (municipality of (form.controls.deliveryMethod.value === 'LocalDelivery' ? config.localMunicipalities : config.carrierMunicipalities); track municipality) {
+                      <option [value]="municipality">{{ municipality }}</option>
+                    }
+                  </select></label>
+                } @else { <label>Municipio de Colombia *<input formControlName="municipality" maxlength="120" autocomplete="address-level2" (input)="selectionChanged()" required /></label> }
+                <label>Barrio<input formControlName="neighborhood" maxlength="120" /></label>
+                <label>Dirección completa *<input formControlName="address" maxlength="300" autocomplete="street-address" required /></label>
+                <label>Referencias de entrega<input formControlName="addressReferences" maxlength="500" /></label>
+              </div>
+            }
+            <label>Observaciones<textarea formControlName="notes" maxlength="2000" rows="3"></textarea></label>
+            @if (!quote() || quote()!.grandTotal > 0) { <p class="description">{{ config.paymentInstructions }}</p> }
+            <label>Cupón opcional<input formControlName="couponCode" maxlength="80" placeholder="BIENVENIDA10" (input)="selectionChanged()" />
+              <small>Se compara con las promociones automáticas y se aplica un solo beneficio adicional, el mayor. No descuenta el envío.</small></label>
+            <button type="button" (click)="review()" [disabled]="busy()">Recalcular y revisar resumen</button>
+          </section>
+          @if (quote(); as result) {
+            <section class="panel">
+              <h2>3. Revisa y acepta</h2>
+              <p>Municipio: <strong>{{ result.municipality }}</strong></p>
+              @if (result.deliveryMethod === 'CoordinatedPickup') { <p class="description">{{ result.pickupInstructions }}</p> }
+              @if (result.grandTotal > 0) { <p class="description">{{ result.paymentInstructions }}</p> }
+              @if (result.couponNotice) { <p class="warning">{{ result.couponNotice }}</p> }
+              @if (result.grandTotal === 0) { <p class="success">Pedido sin cobro: el descuento cubre todo el importe. No realices pagos; el negocio aún debe confirmar el inventario.</p> }
+              <div class="table-scroll"><table>
+                <thead><tr><th>Producto</th><th>Cantidad</th><th>Precio COP antes del beneficio adicional</th><th>Beneficio adicional COP</th><th>Total neto COP</th></tr></thead>
+                <tbody>@for (line of result.items; track line.productId) {
+                  <tr><td>{{ line.name }}</td><td>{{ line.quantity }}</td>
+                    <td>{{ line.unitPrice | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                    <td>− {{ line.promotionDiscountTotal | currency:'COP':'symbol-narrow':'1.0-0' }}</td>
+                    <td>{{ line.lineTotal - line.promotionDiscountTotal | currency:'COP':'symbol-narrow':'1.0-0' }}</td></tr>
+                }</tbody>
+              </table></div>
+              <dl class="totals">
+                <dt>Subtotal antes de promociones</dt><dd>{{ result.subtotal | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+                <dt>Ofertas de productos</dt><dd>− {{ result.discountTotal - (result.promotion?.discountTotal ?? 0) | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+                @if (result.promotion; as benefit) {
+                  <dt>{{ benefit.name }} {{ benefit.code ? '(' + benefit.code + ')' : '(automática)' }}</dt>
+                  <dd>− {{ benefit.discountTotal | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+                }
+                <dt>Entrega</dt><dd>{{ result.shippingCost | currency:'COP':'symbol-narrow':'1.0-0' }}</dd>
+                <dt><strong>Total COP</strong></dt><dd><strong>{{ result.grandTotal | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></dd>
+              </dl>
+              <h3>Condiciones de compra</h3><p class="description">{{ result.termsText }}</p>
+              <label class="checkbox"><input formControlName="termsAccepted" type="checkbox" /> He leído y acepto estas condiciones y entiendo que el negocio debe confirmar la disponibilidad. *</label>
+              <button type="submit" [disabled]="busy() || !intents.ready()">{{ busy() ? 'Procesando…' : result.isTestConfiguration ? 'Enviar pedido de prueba' : 'Enviar pedido' }}</button>
+              <p class="muted">Si la respuesta se pierde, recupera el intento antes de iniciar otro pedido.</p>
+            </section>
+          }
+        </fieldset>
+      </form>
+    }
+  }
+}

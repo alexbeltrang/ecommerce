@@ -1,6 +1,604 @@
-@MercadoCercano.Api_HostAddress = http://localhost:5136
+@host = http://localhost:5136
+@categoryId = 00000000-0000-0000-0000-000000000000
+@productId = 00000000-0000-0000-0000-000000000000
+@imageId = 00000000-0000-0000-0000-000000000000
+@fileName = sustituir-por-el-nombre-recibido.png
+@version = 2026-10-19T00:00:00Z
+@csrfToken = sustituir-por-el-token-recibido
+@orderId = 00000000-0000-0000-0000-000000000000
+@orderNumber = sustituir-por-numero-recibido
+@idempotencyKey = sustituir-por-guid-aleatorio-del-intento
+@trackingToken = sustituir-por-codigo-base64url-aleatorio-de-43-caracteres
+@quoteFingerprint = sustituir-por-huella-recibida-al-cotizar
+@evidenceId = 00000000-0000-0000-0000-000000000000
+@orderItemId = 00000000-0000-0000-0000-000000000000
+@returnId = 00000000-0000-0000-0000-000000000000
+@returnItemId = 00000000-0000-0000-0000-000000000000
+@returnRequestId = sustituir-por-guid-aleatorio-del-intento-de-devolucion
+@paymentAmount = 1000
+@refundAmount = 1000
+@initialAdministratorTestPassword = sustituir-por-una-clave-ficticia-de-prueba
+@promotionId = 00000000-0000-0000-0000-000000000000
+@couponCode = BIENVENIDA10
+@reportFrom = 2026-10-01
+@reportTo = 2026-10-31
+@reportDataSet = real
+@userId = 00000000-0000-0000-0000-000000000000
+@userVersion = sustituir-por-updatedAtUtc-del-usuario
+@temporaryTestPassword = sustituir-por-clave-temporal-ficticia-con-la-politica-vigente
+@currentTestPassword = sustituir-por-clave-actual-ficticia
+@newTestPassword = sustituir-por-clave-nueva-ficticia-con-la-politica-vigente
 
-GET {{MercadoCercano.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### Ejemplos manuales: no se ejecutan automaticamente.
+# Para operaciones privadas, inicia sesion con tu cliente conservando cookies.
+# Obten un CSRF nuevo y copia su requestToken antes de cada escritura.
+# Sustituye los identificadores, versiones y nombre de archivo por los reales.
 
-###
+### Usuarios: listado privado, solo Administrator con contraseña definitiva
+GET {{host}}/api/v1/admin/users?search=prueba&role=OrderOperator&isActive=true&page=1&pageSize=12
+
+### Cuenta y version; 404 si no existe (no devuelve hash ni sello)
+GET {{host}}/api/v1/admin/users/{{userId}}
+
+### Crear cuenta de prueba; 201 con Location y cambio obligatorio de clave
+# No uses claves reales ni guardes secretos en este archivo.
+# Comparte limite 5/min/IP con login, alta inicial, restablecimiento y cambio.
+POST {{host}}/api/v1/admin/users
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Operador de prueba",
+  "email": "operador-prueba@example.test",
+  "role": "OrderOperator",
+  "isActive": true,
+  "temporaryPassword": "{{temporaryTestPassword}}"
+}
+
+### Editar perfil completo o desactivar; revoca todas sus sesiones
+# Usa el perfil real y la version consultada; no sobrescribas con datos ficticios.
+# No permite desactivarte/cambiar tu propio rol. Version vieja: 409.
+PUT {{host}}/api/v1/admin/users/{{userId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Operador de prueba",
+  "email": "operador-prueba@example.test",
+  "role": "OrderOperator",
+  "isActive": false,
+  "updatedAtUtc": "{{userVersion}}"
+}
+
+### Restablecer OTRA cuenta; temporal distinta, no reactiva ni envia correo
+# Recarga userVersion tras cada mutacion, incluido el restablecimiento.
+POST {{host}}/api/v1/admin/users/{{userId}}/reset-password
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "temporaryPassword": "{{temporaryTestPassword}}",
+  "updatedAtUtc": "{{userVersion}}"
+}
+
+### Mi contraseña; ambos roles, tambien con clave temporal
+# 204 y cierre de TODAS las sesiones, incluida la actual. Luego inicia sesion.
+# La nueva debe diferir de la actual; 8-32, mayuscula/minuscula/numero/especial.
+POST {{host}}/api/v1/account/password
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "currentPassword": "{{currentTestPassword}}",
+  "newPassword": "{{newTestPassword}}"
+}
+
+### Promociones: listado privado (solo Administrator)
+GET {{host}}/api/v1/admin/promotions?kind=coupon&page=1&pageSize=12
+
+### Promocion y version actual (404 si no existe)
+GET {{host}}/api/v1/admin/promotions/{{promotionId}}
+
+### Crear cupon de prueba; 201 con Location. Cambia fechas al periodo deseado.
+# code null crea una automatica. Para alcance especifico usa SOLO productId o categoryId.
+POST {{host}}/api/v1/admin/promotions
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Bienvenida de prueba",
+  "code": "BIENVENIDA10",
+  "discountType": "Percentage",
+  "discountValue": 10,
+  "minimumOrderAmount": 0,
+  "maximumDiscountAmount": 5000,
+  "maxUses": 100,
+  "productId": null,
+  "categoryId": null,
+  "startsAtUtc": "2026-10-01T00:00:00Z",
+  "endsAtUtc": "2027-01-01T00:00:00Z",
+  "isActive": true
+}
+
+### Desactivar conservando las condiciones originales y la version consultada
+# PUT es edicion completa: conserva los valores reales, no reemplaces una regla por este ejemplo.
+# Una version vieja produce 409; recarga y revisa, no reintentes sobrescribiendo.
+PUT {{host}}/api/v1/admin/promotions/{{promotionId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Bienvenida de prueba",
+  "code": "BIENVENIDA10",
+  "discountType": "Percentage",
+  "discountValue": 10,
+  "minimumOrderAmount": 0,
+  "maximumDiscountAmount": 5000,
+  "maxUses": 100,
+  "productId": null,
+  "categoryId": null,
+  "startsAtUtc": "2026-10-01T00:00:00Z",
+  "endsAtUtc": "2027-01-01T00:00:00Z",
+  "isActive": false,
+  "updatedAtUtc": "{{version}}"
+}
+
+### Historial de usos consumidos y liberados, sin datos de contacto
+GET {{host}}/api/v1/admin/promotions/{{promotionId}}/usages?page=1
+
+### Regla inexistente: 404 Problem Details
+GET {{host}}/api/v1/admin/promotions/00000000-0000-0000-0000-000000000000
+
+### Reportes privados: solo Administrator. Fechas inclusivas de Colombia.
+# Los importes agregados se devuelven como cadenas de enteros COP.
+# dataSet real excluye pruebas; usa test o all de forma explicita.
+GET {{host}}/api/v1/admin/reports/sales?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}
+
+### Productos y margen estimado por eventos; sin precios/costos actuales
+GET {{host}}/api/v1/admin/reports/products?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}&sort=units&page=1&pageSize=12
+
+### Inventario actual, no corte historico; low excluye agotados
+GET {{host}}/api/v1/admin/reports/inventory?stock=low&visibility=all&page=1&pageSize=12
+
+### Eventos de promociones; contador global actual no se restringe al periodo
+GET {{host}}/api/v1/admin/reports/promotions?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}&page=1&pageSize=12
+
+### Exportar resumen y todos los dias; archivo CSV privado
+GET {{host}}/api/v1/admin/reports/sales.csv?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}
+
+### Exportar todos los productos filtrados, no solo la pagina
+GET {{host}}/api/v1/admin/reports/products.csv?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}&sort=units
+
+### Exportar todas las existencias filtradas, incluso productos no publicados
+GET {{host}}/api/v1/admin/reports/inventory.csv?stock=all&visibility=all
+
+### Exportar todos los eventos promocionales agrupados del periodo
+GET {{host}}/api/v1/admin/reports/promotions.csv?from={{reportFrom}}&to={{reportTo}}&dataSet={{reportDataSet}}
+
+### Periodo invertido: 400 Problem Details (sin consultar datos parciales)
+GET {{host}}/api/v1/admin/reports/sales?from=2026-10-31&to=2026-10-01&dataSet=real
+
+### Documento OpenAPI
+GET {{host}}/openapi/v1.json
+
+### Liveness publico: proceso disponible, sin detalles de infraestructura
+GET {{host}}/api/v1/health
+
+### Readiness publico: 200 si SQLite/esquema/administrador estan listos; 503 generico si no
+# Ejemplo exclusivamente manual, no sondeo ni ejecucion automatica.
+GET {{host}}/api/v1/health/ready
+
+### CSRF
+GET {{host}}/api/v1/auth/csrf
+
+### Sesion actual (401 si no hay sesion)
+GET {{host}}/api/v1/auth/me
+
+### Disponibilidad del primer administrador: solo available, false fuera de Development
+GET {{host}}/api/v1/auth/initial-administrator
+
+### Alta inicial manual: solo Development y sin NINGUN usuario; requiere CSRF
+# Usa preferentemente el formulario Angular. No guardes contrasenas reales aqui.
+# Sustituye la variable con una clave ficticia de prueba que cumpla los requisitos.
+# 201 con Location al perfil protegido, consultable despues del login.
+# 409 si ya existe un usuario; no restablece cuentas existentes.
+POST {{host}}/api/v1/auth/initial-administrator
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Administrador ficticio",
+  "email": "admin@localhost.test",
+  "password": "{{initialAdministratorTestPassword}}"
+}
+
+### Cerrar sesion
+POST {{host}}/api/v1/auth/logout
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Categorias publicas
+GET {{host}}/api/v1/catalog/categories
+
+### Catalogo filtrado y paginado
+GET {{host}}/api/v1/catalog/products?search=cafe&categoryId={{categoryId}}&page=1&pageSize=12&sort=price-asc
+
+### Detalle publico (404 si esta inactivo o no existe)
+GET {{host}}/api/v1/catalog/products/cafe-molido-250g
+
+### Imagen de un producto visible
+GET {{host}}/api/v1/catalog/images/{{fileName}}
+
+### Listado administrativo
+GET {{host}}/api/v1/admin/categories
+
+### Categoria para editar
+GET {{host}}/api/v1/admin/categories/{{categoryId}}
+
+### Crear categoria
+POST {{host}}/api/v1/admin/categories
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Cafe y bebidas",
+  "slug": "cafe-y-bebidas",
+  "description": "Informacion verificada de la categoria.",
+  "sortOrder": 0,
+  "isActive": true
+}
+
+### Editar o desactivar categoria; usar updatedAtUtc real
+PUT {{host}}/api/v1/admin/categories/{{categoryId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "name": "Cafe y bebidas",
+  "slug": "cafe-y-bebidas",
+  "description": "Informacion verificada de la categoria.",
+  "sortOrder": 1,
+  "isActive": false,
+  "updatedAtUtc": "{{version}}"
+}
+
+### Productos administrativos
+GET {{host}}/api/v1/admin/products?page=1&pageSize=12&sort=name
+
+### Producto para editar
+GET {{host}}/api/v1/admin/products/{{productId}}
+
+### Crear producto de ejemplo, inicialmente inactivo
+POST {{host}}/api/v1/admin/products
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "categoryId": "{{categoryId}}",
+  "sku": "EJEMPLO-CAFE-250",
+  "name": "Cafe molido 250 g",
+  "slug": "cafe-molido-250g",
+  "description": "Sustituir este ejemplo por informacion comercial verificada.",
+  "price": 1000,
+  "cost": 0,
+  "stockQuantity": 0,
+  "lowStockThreshold": 2,
+  "unit": "unidad",
+  "weightGrams": 250,
+  "presentation": "Bolsa de 250 g",
+  "isFeatured": false,
+  "isActive": false
+}
+
+### Actualizar producto e inventario; usar version real
+PUT {{host}}/api/v1/admin/products/{{productId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "categoryId": "{{categoryId}}",
+  "sku": "EJEMPLO-CAFE-250",
+  "name": "Cafe molido 250 g",
+  "slug": "cafe-molido-250g",
+  "description": "Sustituir este ejemplo por informacion comercial verificada.",
+  "price": 1000,
+  "cost": 0,
+  "stockQuantity": 5,
+  "lowStockThreshold": 2,
+  "unit": "unidad",
+  "isActive": false,
+  "inventoryReason": "Conteo inicial verificado",
+  "updatedAtUtc": "{{version}}"
+}
+
+### Subir imagen: sustituye C:\ruta\producto.png por un archivo propio valido
+POST {{host}}/api/v1/admin/products/{{productId}}/images
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=CatalogBoundary
+
+--CatalogBoundary
+Content-Disposition: form-data; name="altText"
+
+Vista frontal del producto
+--CatalogBoundary
+Content-Disposition: form-data; name="file"; filename="producto.png"
+Content-Type: image/png
+
+< C:\ruta\producto.png
+--CatalogBoundary--
+
+### Ordenar imagen y cambiar texto alternativo
+PUT {{host}}/api/v1/admin/products/{{productId}}/images/{{imageId}}
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "altText": "Vista frontal del producto", "sortOrder": 0 }
+
+### Eliminar imagen
+DELETE {{host}}/api/v1/admin/products/{{productId}}/images/{{imageId}}
+X-CSRF-TOKEN: {{csrfToken}}
+
+### Producto publico por ID estable para el carrito (404 si no esta visible)
+GET {{host}}/api/v1/catalog/products/by-id/{{productId}}
+
+### Tarifas, cobertura y condiciones publicadas
+GET {{host}}/api/v1/checkout/settings
+
+### Cotizar sin reservar inventario ni cupo; conserva fingerprint
+# Crea antes el cupon del ejemplo, o elimina couponCode para cotizar sin codigo.
+POST {{host}}/api/v1/checkout/quote
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "items": [{ "productId": "{{productId}}", "quantity": 1 }],
+  "deliveryMethod": "CoordinatedPickup",
+  "paymentMethod": "BankTransfer",
+  "couponCode": "{{couponCode}}"
+}
+
+### Crear pedido de prueba; genera GUID y codigo aleatorios antes del primer envio
+# Conserva exactamente el mismo contenido, GUID y codigo para reintentar.
+# No uses datos personales reales con la configuracion de prueba.
+POST {{host}}/api/v1/checkout/orders
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "selection": {
+    "items": [{ "productId": "{{productId}}", "quantity": 1 }],
+    "deliveryMethod": "CoordinatedPickup",
+    "paymentMethod": "BankTransfer",
+    "couponCode": "{{couponCode}}"
+  },
+  "quoteFingerprint": "{{quoteFingerprint}}",
+  "idempotencyKey": "{{idempotencyKey}}",
+  "trackingToken": "{{trackingToken}}",
+  "customerName": "Cliente ficticio de prueba",
+  "phone": "3000000000",
+  "termsAccepted": true
+}
+
+### Recurso Location del pedido: el secreto va en la cabecera, no en la URL
+GET {{host}}/api/v1/checkout/orders/{{orderNumber}}
+X-Order-Token: {{trackingToken}}
+
+### Seguimiento con numero y codigo privado (404 generico si no coinciden)
+POST {{host}}/api/v1/checkout/track
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "orderNumber": "{{orderNumber}}", "trackingToken": "{{trackingToken}}" }
+
+### Recuperar una respuesta de creacion perdida: requiere GUID y codigo
+POST {{host}}/api/v1/checkout/recover
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "idempotencyKey": "{{idempotencyKey}}", "trackingToken": "{{trackingToken}}" }
+
+### Configuracion administrativa: requiere Administrator; conserva updatedAtUtc
+GET {{host}}/api/v1/admin/checkout-settings
+
+### Editar configuracion de prueba: reemplaza version y datos segun corresponda
+PUT {{host}}/api/v1/admin/checkout-settings
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "updatedAtUtc": "{{version}}",
+  "values": {
+    "isTestConfiguration": true,
+    "pickupEnabled": true,
+    "pickupMunicipality": "Municipio de prueba",
+    "pickupInstructions": "PRUEBA: falta definir la ubicacion real de recogida.",
+    "localDeliveryEnabled": true,
+    "localDeliveryFee": 5000,
+    "localMunicipalities": ["Municipio de prueba"],
+    "carrierShippingEnabled": true,
+    "carrierShippingFee": 15000,
+    "carrierNationwide": true,
+    "carrierMunicipalities": [],
+    "paymentMethods": ["BankTransfer", "DigitalWallet", "CashOnDelivery"],
+    "paymentInstructions": "PRUEBA: no realices pagos.",
+    "termsText": "CONDICIONES DE PRUEBA: pendiente de confirmacion, no reserva inventario. Reemplazar por condiciones y politica de datos del negocio."
+  }
+}
+
+### Pedidos privados: requiere Administrator u OrderOperator
+GET {{host}}/api/v1/admin/orders?status=PendingConfirmation&page=1&pageSize=12
+
+### Detalle privado; conserva updatedAtUtc para operar
+GET {{host}}/api/v1/admin/orders/{{orderId}}
+
+### Confirmar: descuenta stock una unica vez, no acredita pago
+POST {{host}}/api/v1/admin/orders/{{orderId}}/confirm
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}" }
+
+### Cancelar antes del despacho; si estaba pagado genera reembolso pendiente
+POST {{host}}/api/v1/admin/orders/{{orderId}}/cancel
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}", "reason": "Cancelacion de prueba coordinada con el cliente." }
+
+### Fase 6: ejemplos exclusivamente manuales, usar datos ficticios en pedidos de prueba.
+# Actualiza version tras cada escritura y usa importes exactos del servidor.
+# No marques fondos/entrega/reembolso como verificados sin haberlos comprobado.
+
+### Pedidos con comprobantes pendientes de revision
+GET {{host}}/api/v1/admin/orders?paymentStatus=UnderReview&page=1&pageSize=12
+
+### Envios pendientes de recepcion de una devolucion
+GET {{host}}/api/v1/admin/orders?deliveryMethod=CarrierShipping&returnsPending=true
+
+### Reembolsos pendientes: solo Administrator podra registrar su pago
+GET {{host}}/api/v1/admin/orders?refundsPending=true
+
+### Cliente: subir imagen propia PNG de hasta 750 KiB; no PDF
+POST {{host}}/api/v1/checkout/payment/submit-evidence
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=GuestEvidenceBoundary
+
+--GuestEvidenceBoundary
+Content-Disposition: form-data; name="orderNumber"
+
+{{orderNumber}}
+--GuestEvidenceBoundary
+Content-Disposition: form-data; name="trackingToken"
+
+{{trackingToken}}
+--GuestEvidenceBoundary
+Content-Disposition: form-data; name="updatedAtUtc"
+
+{{version}}
+--GuestEvidenceBoundary
+Content-Disposition: form-data; name="reference"
+
+PRUEBA-TRANSFERENCIA-001
+--GuestEvidenceBoundary
+Content-Disposition: form-data; name="file"; filename="comprobante.png"
+Content-Type: image/png
+
+< C:\ruta\comprobante-prueba.png
+--GuestEvidenceBoundary--
+
+### Personal autorizado: adjuntar comprobante privado
+POST {{host}}/api/v1/admin/orders/{{orderId}}/payment/submit-evidence
+X-CSRF-TOKEN: {{csrfToken}}
+Content-Type: multipart/form-data; boundary=StaffEvidenceBoundary
+
+--StaffEvidenceBoundary
+Content-Disposition: form-data; name="updatedAtUtc"
+
+{{version}}
+--StaffEvidenceBoundary
+Content-Disposition: form-data; name="reference"
+
+PRUEBA-TRANSFERENCIA-002
+--StaffEvidenceBoundary
+Content-Disposition: form-data; name="file"; filename="comprobante.png"
+Content-Type: image/png
+
+< C:\ruta\comprobante-prueba.png
+--StaffEvidenceBoundary--
+
+### Descarga privada: 404 si el archivo no pertenece a este pedido
+GET {{host}}/api/v1/admin/orders/{{orderId}}/payment/evidence/{{evidenceId}}
+
+### Aprobar transferencia/billetera en revision o efectivo realmente cobrado
+POST {{host}}/api/v1/admin/orders/{{orderId}}/payment/approve
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "updatedAtUtc": "{{version}}",
+  "amount": {{paymentAmount}},
+  "reference": "PRUEBA-FONDOS-VERIFICADOS",
+  "fundsVerified": true
+}
+
+### Rechazar comprobante con motivo publico, sin referencias sensibles
+POST {{host}}/api/v1/admin/orders/{{orderId}}/payment/reject
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}", "reason": "Comprobante de prueba no verificable; adjuntar uno legible." }
+
+### Preparar: exige confirmacion y pago no efectivo aprobado
+POST {{host}}/api/v1/admin/orders/{{orderId}}/fulfillment/prepare
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}" }
+
+### Marcar listo
+POST {{host}}/api/v1/admin/orders/{{orderId}}/fulfillment/ready
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}" }
+
+### Despachar transportadora: empresa y guia obligatorias; recogida no se despacha
+POST {{host}}/api/v1/admin/orders/{{orderId}}/fulfillment/ship
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}", "carrierName": "Transportadora ficticia", "trackingNumber": "PRUEBA-GUIA-001" }
+
+### Entregar: pago completo y recepcion real; recogida desde listo, envios desde despachado
+POST {{host}}/api/v1/admin/orders/{{orderId}}/fulfillment/deliver
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}", "deliveryConfirmed": true }
+
+### Solicitar devolucion parcial tras entrega: 201 con Location, importe calculado por servidor
+# Para un despacho fallido incluye todas las lineas y cantidades.
+POST {{host}}/api/v1/admin/orders/{{orderId}}/returns
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "updatedAtUtc": "{{version}}",
+  "requestId": "{{returnRequestId}}",
+  "items": [{ "orderItemId": "{{orderItemId}}", "quantity": 1 }],
+  "reason": "Devolucion de prueba coordinada, sin datos personales.",
+  "shippingRefundAmount": 0
+}
+
+### Recuperar devolucion tras perdida de respuesta: no generar otro GUID automaticamente
+GET {{host}}/api/v1/admin/orders/{{orderId}}/returns/by-request/{{returnRequestId}}
+
+### Recibir TODAS las lineas de la solicitud; repone solo las vendibles
+POST {{host}}/api/v1/admin/orders/{{orderId}}/returns/{{returnId}}/receive
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "updatedAtUtc": "{{version}}",
+  "receiptConfirmed": true,
+  "items": [{ "returnItemId": "{{returnItemId}}", "restockQuantity": 1 }]
+}
+
+### Alternativa ANTES de recibir: rechazar y liberar cantidades
+POST {{host}}/api/v1/admin/orders/{{orderId}}/returns/{{returnId}}/reject
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{ "updatedAtUtc": "{{version}}", "reason": "Solicitud de prueba desistida de comun acuerdo." }
+
+### Solo Administrator: registrar importe exacto ya reembolsado externamente
+# El endpoint no transfiere dinero y no vuelve a mover inventario.
+POST {{host}}/api/v1/admin/orders/{{orderId}}/returns/{{returnId}}/refund
+Content-Type: application/json
+X-CSRF-TOKEN: {{csrfToken}}
+
+{
+  "updatedAtUtc": "{{version}}",
+  "amount": {{refundAmount}},
+  "reference": "PRUEBA-REEMBOLSO-001",
+  "refundCompleted": true
+}

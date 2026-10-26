@@ -1,0 +1,97 @@
+<div class="section-title"><h1>Promociones y cupones</h1><button class="secondary" (click)="reset()" [disabled]="busy()">Nueva promoción</button></div>
+<p>Se conservan las ofertas de productos y se aplica un solo beneficio adicional: el mayor entre promociones automáticas y cupón. Nunca descuenta el envío.</p>
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (message()) { <p class="success" role="status">{{ message() }}</p> }
+<section class="panel">
+  <h2>{{ editing() ? 'Editar promoción' : 'Crear promoción' }}</h2>
+  <form [formGroup]="form" (ngSubmit)="save()"><fieldset [disabled]="busy()">
+    <div class="form-grid">
+      <label>Nombre *<input formControlName="name" maxlength="160" required /></label>
+      <label>Aplicación<select formControlName="mode" (change)="modeChanged()"><option value="automatic">Automática</option><option value="coupon">Cupón</option></select></label>
+      @if (form.controls.mode.value === 'coupon') {
+        <label>Código *<input formControlName="code" maxlength="80" placeholder="BIENVENIDA10" /><small>3–80 letras ASCII, números, guiones o guion bajo. No cambia después de tener usos.</small></label>
+      }
+      <label>Tipo<select formControlName="discountType"><option value="Percentage">Porcentaje entero</option><option value="FixedAmount">Monto fijo COP</option></select></label>
+      <label>Valor *<input type="number" formControlName="discountValue" min="1" [max]="form.controls.discountType.value === 'Percentage' ? 100 : 9000000000000" step="1" required /></label>
+      <label>Compra mínima elegible COP *<input type="number" formControlName="minimumOrderAmount" min="0" max="9000000000000" step="1" required /><small>Después de ofertas de productos, solo sobre el alcance elegido y sin envío.</small></label>
+      <label>Tope del descuento COP<input type="number" formControlName="maximumDiscountAmount" min="1" max="9000000000000" step="1" /><small>Vacío: sin tope adicional. Nunca supera la mercancía elegible.</small></label>
+      <label>Cupo global<input type="number" formControlName="maxUses" min="1" max="2147483647" step="1" /><small>Vacío: sin límite comercial. Un uso por pedido al crearlo.</small></label>
+      <label>Alcance<select formControlName="scope"><option value="all">Todos los productos</option><option value="category">Una categoría</option><option value="product">Un producto</option></select></label>
+      @if (form.controls.scope.value === 'category') {
+        <label>Categoría *<select formControlName="categoryId"><option value="">Selecciona</option>
+          @for (category of categories(); track category.id) { <option [value]="category.id">{{ category.name }}{{ category.isActive ? '' : ' (inactiva)' }}</option> }
+        </select></label>
+      }
+      <label>Inicio (hora local) *<input type="datetime-local" formControlName="startsAt" required /></label>
+      <label>Fin exclusivo (hora local) *<input type="datetime-local" formControlName="endsAt" required /></label>
+    </div>
+    @if (form.controls.scope.value === 'product') {
+      <div class="panel">
+        <label>Buscar producto<input name="productSearch" [(ngModel)]="productTerm" [ngModelOptions]="{standalone:true}" maxlength="100" /></label>
+        <button type="button" class="secondary" (click)="findProducts(true)" [disabled]="productLoading()">Buscar productos</button>
+        <p>Seleccionado: <strong>{{ productName() || 'Ninguno' }}</strong></p>
+        @if (products(); as found) {
+          <ul>@for (item of found.items; track item.product.id) {
+            <li>{{ item.product.name }} · {{ item.product.sku }} {{ item.isActive ? '' : '(inactivo)' }}
+              <button type="button" class="secondary" (click)="selectProduct(item)">Seleccionar</button></li>
+          } @empty { <li>Sin coincidencias.</li> }</ul>
+          <div class="pagination">
+            <button type="button" class="secondary" [disabled]="productPage <= 1 || productLoading()" (click)="productPage = productPage - 1; findProducts()">Anterior</button>
+            <span>Página {{ productPage }}</span>
+            <button type="button" class="secondary" [disabled]="productPage * found.pageSize >= found.total || productLoading()" (click)="productPage = productPage + 1; findProducts()">Siguiente</button>
+          </div>
+        }
+      </div>
+    }
+    <label class="checkbox"><input type="checkbox" formControlName="isActive" /> Habilitada (solo aplica dentro de su vigencia y cupo)</label>
+    @if (editing(); as item) { <p>Usos consumidos: {{ item.usedCount }} / {{ item.maxUses ?? 'sin límite' }}. Cancelar antes del despacho libera el uso; devolver después no lo libera.</p> }
+    @if (form.invalid && form.touched) { <p class="error">Revisa los campos obligatorios, códigos e importes enteros dentro de los límites.</p> }
+    <div class="actions"><button>{{ busy() ? 'Guardando…' : 'Guardar promoción' }}</button><button type="button" class="secondary" (click)="reset()">Cancelar edición</button></div>
+  </fieldset></form>
+</section>
+<section class="panel">
+  <h2>Listado</h2>
+  <form class="filters" (ngSubmit)="search()">
+    <label>Nombre o código<input name="term" [(ngModel)]="term" maxlength="100" /></label>
+    <label>Tipo<select name="kind" [(ngModel)]="kind"><option value="">Todos</option><option value="automatic">Automáticas</option><option value="coupon">Cupones</option></select></label>
+    <label>Habilitación<select name="active" [(ngModel)]="active"><option value="">Todas</option><option value="true">Habilitadas</option><option value="false">Deshabilitadas</option></select></label>
+    <button [disabled]="loading() || busy()">Buscar / actualizar</button>
+  </form>
+  @if (loading()) { <p role="status">Cargando promociones…</p> }
+  @if (result(); as list) {
+    <p>{{ list.total }} promociones</p>
+    <div class="table-scroll"><table><thead><tr><th>Nombre / código</th><th>Beneficio / alcance</th><th>Vigencia</th><th>Estado / usos</th><th>Acciones</th></tr></thead>
+      <tbody>@for (item of list.items; track item.id) {
+        <tr><td>{{ item.name }}<small>{{ item.code || 'Automática' }}</small></td><td>
+          @if (item.discountType === 'Percentage') { {{ item.discountValue }} % } @else { {{ item.discountValue | currency:'COP':'symbol-narrow':'1.0-0' }} COP }
+          <small>{{ item.productName || item.categoryName || 'Todo el carrito' }}</small></td>
+          <td>{{ item.startsAtUtc | date:'short' }}<small>Hasta {{ item.endsAtUtc | date:'short' }}</small></td>
+          <td>{{ states[item.state] }}<small>{{ item.usedCount }} / {{ item.maxUses ?? 'sin límite' }}</small></td>
+          <td><button class="secondary" (click)="edit(item.id)" [disabled]="busy()">Editar</button>
+            <button class="secondary" (click)="showHistory(item)" [disabled]="historyLoading()">Ver usos</button></td></tr>
+      } @empty { <tr><td colspan="5">No hay promociones con estos filtros.</td></tr> }</tbody>
+    </table></div>
+    <div class="pagination">
+      <button class="secondary" [disabled]="page <= 1 || loading() || busy()" (click)="page = page - 1; load()">Anterior</button>
+      <span>Página {{ page }}</span>
+      <button class="secondary" [disabled]="page * list.pageSize >= list.total || loading() || busy()" (click)="page = page + 1; load()">Siguiente</button>
+    </div>
+  }
+</section>
+@if (historyLoading()) { <p role="status">Cargando usos…</p> }
+@if (history(); as uses) {
+  <section class="panel"><h2>Usos: {{ usagePromotion()?.name }}</h2>
+    <div class="table-scroll"><table><thead><tr><th>Pedido</th><th>Descuento COP</th><th>Uso</th><th>Liberación</th></tr></thead>
+      <tbody>@for (usage of uses.items; track usage.orderId) {
+        <tr><td><a [routerLink]="['/admin/pedidos', usage.orderId]">{{ usage.orderNumber }}</a></td>
+          <td>{{ usage.discountAmount | currency:'COP':'symbol-narrow':'1.0-0' }}</td><td>{{ usage.usedAtUtc | date:'short' }}</td>
+          <td>{{ usage.releasedAtUtc ? (usage.releasedAtUtc | date:'short') : 'Consumido' }}</td></tr>
+      } @empty { <tr><td colspan="4">Sin usos registrados.</td></tr> }</tbody>
+    </table></div>
+    @if (usagePromotion(); as item) { <div class="pagination">
+      <button class="secondary" [disabled]="usagePage <= 1 || historyLoading()" (click)="showHistory(item, usagePage - 1)">Anterior</button>
+      <span>Página {{ usagePage }} · {{ uses.total }} registros</span>
+      <button class="secondary" [disabled]="usagePage * uses.pageSize >= uses.total || historyLoading()" (click)="showHistory(item, usagePage + 1)">Siguiente</button>
+    </div> }
+  </section>
+}

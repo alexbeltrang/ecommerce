@@ -1,0 +1,58 @@
+<div class="section-title"><h1>Entregas y checkout</h1><button type="button" class="secondary" (click)="load()" [disabled]="busy() || loading()">Recargar configuración</button></div>
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (message()) { <p class="success" role="status">{{ message() }}</p> }
+@if (loading()) { <p role="status">Cargando configuración…</p> }
+@if (missing() && !available()) { <button type="button" (click)="startNew()">Crear configuración inicial</button> }
+@if (available()) {
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <fieldset [disabled]="busy()">
+      <section class="panel">
+        <h2>Modo de funcionamiento</h2>
+        <label class="checkbox"><input type="checkbox" formControlName="isTestConfiguration" /> Configuración de prueba: no aceptar pagos reales</label>
+        @if (form.controls.isTestConfiguration.value) {
+          <p class="warning">Los valores iniciales son ficticios: recogida 0 COP, domicilio 5.000 COP y transportadora 15.000 COP. Reemplaza municipio, tarifas e instrucciones antes de desactivar este modo. Los pedidos de prueba solo se crean en Development.</p>
+        } @else { <p class="warning">El checkout publicará estos datos para pedidos reales. Revisa cobertura, costos y condiciones antes de guardar.</p> }
+        <p>Los precios se calculan en COP enteros. El envío usa una tarifa fija por modalidad, no cotiza con transportadoras externas.</p>
+      </section>
+      <section class="panel">
+        <h2>Recogida coordinada</h2>
+        <label class="checkbox"><input type="checkbox" formControlName="pickupEnabled" /> Habilitar recogida sin costo</label>
+        <div class="form-grid">
+          <label>Municipio de recogida<input formControlName="pickupMunicipality" maxlength="120" /></label>
+          <label>Ubicación e instrucciones públicas<textarea formControlName="pickupInstructions" maxlength="1000" rows="3"></textarea></label>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Domicilio local</h2>
+        <label class="checkbox"><input type="checkbox" formControlName="localDeliveryEnabled" /> Habilitar domicilio local</label>
+        <div class="form-grid">
+          <label>Tarifa fija COP<input type="number" formControlName="localDeliveryFee" min="0" max="9000000000000" step="1" required /></label>
+          <label>Municipios con cobertura<textarea formControlName="localMunicipalities" rows="4" placeholder="Un municipio por línea"></textarea><small>Hasta 100 municipios distintos, de máximo 120 caracteres cada uno.</small></label>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Transportadora</h2>
+        <label class="checkbox"><input type="checkbox" formControlName="carrierShippingEnabled" /> Habilitar envío por transportadora</label>
+        <label class="checkbox"><input type="checkbox" formControlName="carrierNationwide" /> Cobertura nacional en Colombia</label>
+        <div class="form-grid">
+          <label>Tarifa fija COP<input type="number" formControlName="carrierShippingFee" min="0" max="9000000000000" step="1" required /></label>
+          <label>Municipios con cobertura limitada<textarea formControlName="carrierMunicipalities" rows="4" placeholder="Un municipio por línea"></textarea><small>Se utiliza cuando no hay cobertura nacional. No incluyas duplicados.</small></label>
+        </div>
+      </section>
+      <section class="panel">
+        <h2>Medios de pago e instrucciones</h2><p>Selecciona al menos un medio. Esta fase no integra pasarelas ni confirma pagos automáticamente.</p>
+        <label class="checkbox"><input type="checkbox" formControlName="bankTransfer" /> Transferencia bancaria</label>
+        <label class="checkbox"><input type="checkbox" formControlName="digitalWallet" /> Billetera digital</label>
+        <label class="checkbox"><input type="checkbox" formControlName="cashOnDelivery" /> Efectivo contra entrega</label>
+        <label>Instrucciones públicas de pago *<textarea formControlName="paymentInstructions" maxlength="1000" rows="4" required></textarea></label>
+        <small>Contenido visible públicamente. Nunca ingreses contraseñas, tokens ni claves bancarias.</small>
+      </section>
+      <section class="panel">
+        <h2>Condiciones de compra y datos personales</h2>
+        <label>Texto que el cliente debe aceptar *<textarea formControlName="termsText" maxlength="5000" rows="7" required></textarea></label>
+        <p class="muted">Publica las condiciones y la política de tratamiento de datos reales del negocio. Explica que un pedido pendiente no reserva stock. El texto aceptado queda guardado con cada pedido.</p>
+        <button [disabled]="busy()">{{ busy() ? 'Guardando…' : 'Guardar configuración' }}</button>
+      </section>
+    </fieldset>
+  </form>
+}

@@ -1,0 +1,16 @@
+<header class="site-header">
+  <a class="brand" routerLink="/">Mercado Cercano<span>TIENDA LOCAL · COLOMBIA</span></a>
+  <nav aria-label="Principal">
+    <a routerLink="/">Catálogo</a>
+    <a routerLink="/carrito">Carrito ({{ cart.count() }})</a>
+    <a routerLink="/seguimiento">Seguir pedido</a>
+    <a routerLink="/admin">{{ session.user() ? 'Mi portal' : 'Ingreso administrativo' }}</a>
+  </nav>
+</header>
+<main class="container">
+  @if (cart.error()) { <p class="error" role="alert">{{ cart.error() }} <a routerLink="/carrito">Revisar carrito</a></p> }
+  @if (cart.notice()) { <div class="success" role="status">{{ cart.notice() }} <a routerLink="/carrito">Ver carrito</a>
+    <button type="button" class="secondary" (click)="cart.notice.set('')" aria-label="Cerrar aviso del carrito">Cerrar</button></div> }
+  <router-outlet />
+</main>
+<footer class="site-footer">Mercado Cercano · Productos de confianza, cerca de ti.</footer>

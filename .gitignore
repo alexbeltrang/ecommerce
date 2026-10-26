@@ -5,11 +5,15 @@
 # Frontend dependencies and build output
 **/node_modules/
 **/dist/
+**/.angular/
 
 # Local configuration
 **/.env
 **/.env.*
 !**/.env.example
+**/appsettings.Production.json
+/artifacts/
+/backups/
 
 # Local databases and uploaded files
 *.db

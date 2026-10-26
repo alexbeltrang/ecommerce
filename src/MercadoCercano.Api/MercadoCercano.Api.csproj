@@ -7,13 +7,31 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
-    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.13" />
+    <PackageReference Include="NSwag.AspNetCore" Version="14.7.1" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.13">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\MercadoCercano.Application\MercadoCercano.Application.csproj" />
     <ProjectReference Include="..\MercadoCercano.Infrastructure\MercadoCercano.Infrastructure.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\MercadoCercano.Web\dist\mercado-cercano-web\browser\**\*"
+             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\MercadoCercano.Web\dist\mercado-cercano-web\3rdpartylicenses.txt"
+             Link="3rdpartylicenses.txt" CopyToPublishDirectory="PreserveNewest" />
+    <Content Include="..\..\deployment\iis\*.ps1" Exclude="..\..\deployment\iis\Publish-Iis.ps1"
+             Link="operations\%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="RequireAngularForPublish" BeforeTargets="ComputeFilesToPublish">
+    <Error Condition="!Exists('..\MercadoCercano.Web\dist\mercado-cercano-web\browser\index.html')"
+           Text="Compila Angular con npm run build antes de publicar la API para IIS." />
+  </Target>
 
 </Project>

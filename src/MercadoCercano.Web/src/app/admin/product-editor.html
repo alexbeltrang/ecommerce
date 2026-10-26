@@ -1,0 +1,90 @@
+<div class="section-title">
+  <h1>{{ id ? 'Editar producto' : 'Nuevo producto' }}</h1>
+  @if (id) { <button class="secondary" (click)="reload()" [disabled]="busy() || imageBusy() || loading()">Recargar datos</button> }
+  <a routerLink="/admin/productos">Volver al listado</a>
+</div>
+@if (error()) { <p class="error" role="alert">{{ error() }}</p> }
+@if (message()) { <p class="success" role="status">{{ message() }}</p> }
+@if (loading()) { <p role="status">Cargando…</p> }
+@if (!ready() && !loading()) { <button class="secondary" (click)="load()">Reintentar</button> }
+@if (ready()) {
+  <form class="panel" [formGroup]="form" (ngSubmit)="save()">
+    <fieldset [disabled]="busy() || imageBusy()">
+      <legend>Información del producto</legend>
+      <div class="form-grid">
+        <label>Nombre<input formControlName="name" maxlength="180" required (blur)="suggestSlug()" /></label>
+        <label>SKU<input formControlName="sku" maxlength="80" required /></label>
+        <label>URL<input formControlName="slug" maxlength="200" placeholder="cafe-molido-250g" required /></label>
+        <label>Categoría<select formControlName="categoryId" required>
+          <option value="">Selecciona una categoría</option>
+          @for (category of categories(); track category.id) {
+            <option [value]="category.id">{{ category.name }}{{ category.isActive ? '' : ' (inactiva)' }}</option>
+          }
+        </select></label>
+      </div>
+      <label>Descripción<textarea formControlName="description" rows="5" maxlength="10000" required></textarea></label>
+      <div class="form-grid">
+        <label>Precio COP (entero)<input type="number" formControlName="price" min="1" max="9000000000000" step="1" required /></label>
+        <label>Costo COP (privado)<input type="number" formControlName="cost" min="0" max="9000000000000" step="1" required /></label>
+        <label>Unidad<input formControlName="unit" maxlength="40" required /></label>
+        <label>Presentación<input formControlName="presentation" maxlength="300" placeholder="Bolsa de 250 g" /></label>
+        <label>Peso en gramos<input type="number" formControlName="weightGrams" min="1" max="2147483647" step="1" /></label>
+      </div>
+      <h2>Inventario</h2>
+      <div class="form-grid">
+        <label>Existencias<input type="number" formControlName="stockQuantity" min="0" max="2147483647" step="1" required /></label>
+        <label>Umbral de stock bajo<input type="number" formControlName="lowStockThreshold" min="0" max="2147483647" step="1" required /></label>
+      </div>
+      <label>Motivo del ajuste de inventario<input formControlName="inventoryReason" maxlength="1000" placeholder="Obligatorio si cambias las existencias al editar" /></label>
+      <p class="muted">Cada cambio de existencias genera un movimiento de inventario y una entrada de auditoría.</p>
+      <details><summary>Promoción y datos adicionales</summary>
+        <div class="form-grid">
+          <label>Precio promocional COP<input type="number" formControlName="promotionalPrice" min="1" max="9000000000000" step="1" /></label>
+          <label>Inicio de promoción (hora local)<input type="datetime-local" formControlName="promotionStartUtc" /></label>
+          <label>Fin de promoción (hora local)<input type="datetime-local" formControlName="promotionEndUtc" /></label>
+          <label>Lote (privado)<input formControlName="lotNumber" maxlength="120" /></label>
+          <label>Vencimiento (hora local)<input type="datetime-local" formControlName="expirationDateUtc" /></label>
+        </div>
+        <p class="muted">El precio promocional debe ser menor al normal. Sin fechas, aplica mientras esté configurado; para programarlo indica inicio y fin.</p>
+        <label>Etiquetado del proveedor (JSON privado)<textarea formControlName="supplierLabelingJson" maxlength="10000"></textarea></label>
+      </details>
+      <div class="actions">
+        <label class="checkbox"><input type="checkbox" formControlName="isActive" /> Activo</label>
+        <label class="checkbox"><input type="checkbox" formControlName="isFeatured" /> Destacado</label>
+      </div>
+      <p class="muted">Un producto solo es público cuando tanto él como su categoría están activos.</p>
+      @if (form.invalid && form.touched) { <p class="error">Revisa los campos obligatorios, las longitudes y los valores enteros.</p> }
+      <div class="actions">
+        <button type="submit">{{ busy() ? 'Guardando…' : 'Guardar producto' }}</button>
+        <a routerLink="/admin/productos">Cancelar</a>
+      </div>
+    </fieldset>
+  </form>
+}
+@if (product(); as current) {
+  <section class="panel">
+    <h2>Imágenes del producto</h2>
+    <p>PNG, JPEG o WebP · máximo 750 KiB por archivo · hasta 8 imágenes.</p>
+    @if (form.dirty) { <p class="warning">Guarda los cambios del producto antes de administrar imágenes.</p> }
+    <fieldset [disabled]="busy() || imageBusy() || form.dirty">
+      <legend>Galería</legend>
+      @if (current.product.images.length < 8) {
+        <div class="form-grid">
+          <label>Archivo<input #fileInput type="file" accept="image/png,image/jpeg,image/webp" /></label>
+          <label>Texto alternativo<input #uploadAlt maxlength="300" placeholder="Describe el producto de la imagen" /></label>
+        </div>
+        <button type="button" (click)="upload(fileInput, uploadAlt.value)">Subir imagen</button>
+      }
+      @for (image of current.product.images; track image.id) {
+        <div class="image-editor">
+          <img [src]="image.imageUrl" [alt]="image.altText || current.product.name" />
+          <label>Texto alternativo<input #alt [value]="image.altText || ''" maxlength="300" /></label>
+          <label>Orden<input #order type="number" [value]="image.sortOrder" min="0" max="2147483647" step="1" /></label>
+          <button type="button" class="secondary" (click)="saveImage(image, alt.value, order.valueAsNumber)">Guardar imagen</button>
+          <button type="button" class="danger" (click)="deleteImage(image)">Eliminar</button>
+        </div>
+      } @empty { <p class="muted">El producto todavía no tiene imágenes.</p> }
+    </fieldset>
+    @if (imageBusy()) { <p role="status">Actualizando imágenes…</p> }
+  </section>
+} @else if (ready()) { <p class="panel">Guarda el producto para asociar imágenes.</p> }
