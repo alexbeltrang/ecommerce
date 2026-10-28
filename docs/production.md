@@ -70,6 +70,14 @@ licencias y scripts, pero no instala la configuracion privada. La validacion
 de scripts sin firma puede limitarse a su analisis estatico hasta contar con
 la firma corporativa; eso no equivale a una prueba real de IIS.
 
+Los archivos de Angular se agregan a `wwwroot` solo al publicar; no forman
+parte del manifiesto de recursos estaticos del arranque local. Development/F5
+usa Angular CLI por separado y no requiere una carpeta `wwwroot` en el
+proyecto de la API. Si una compilacion anterior dejo un manifiesto que apunta
+a esa carpeta inexistente, deten la depuracion con Shift+F5, ejecuta
+`dotnet clean src\MercadoCercano.Api\MercadoCercano.Api.csproj --configuration Debug`
+desde la raiz del repositorio y vuelve a iniciar con F5 para regenerar la salida.
+
 ## 2. Instalacion inicial, con el sitio detenido
 
 1. Crea el App Pool y sitio con la configuracion indicada, sin abrirlo a

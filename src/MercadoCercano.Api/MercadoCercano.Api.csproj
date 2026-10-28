@@ -21,8 +21,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\MercadoCercano.Web\dist\mercado-cercano-web\browser\**\*"
-             Link="wwwroot\%(RecursiveDir)%(Filename)%(Extension)" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\MercadoCercano.Web\dist\mercado-cercano-web\3rdpartylicenses.txt"
              Link="3rdpartylicenses.txt" CopyToPublishDirectory="PreserveNewest" />
     <Content Include="..\..\deployment\iis\*.ps1" Exclude="..\..\deployment\iis\Publish-Iis.ps1"
@@ -32,6 +30,16 @@
   <Target Name="RequireAngularForPublish" BeforeTargets="ComputeFilesToPublish">
     <Error Condition="!Exists('..\MercadoCercano.Web\dist\mercado-cercano-web\browser\index.html')"
            Text="Compila Angular con npm run build antes de publicar la API para IIS." />
+  </Target>
+
+  <Target Name="IncludeAngularForPublish" AfterTargets="ComputeFilesToPublish">
+    <ItemGroup>
+      <_AngularPublishFile Include="..\MercadoCercano.Web\dist\mercado-cercano-web\browser\**\*" />
+      <ResolvedFileToPublish Include="@(_AngularPublishFile)">
+        <RelativePath>wwwroot\%(_AngularPublishFile.RecursiveDir)%(_AngularPublishFile.Filename)%(_AngularPublishFile.Extension)</RelativePath>
+        <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+      </ResolvedFileToPublish>
+    </ItemGroup>
   </Target>
 
 </Project>

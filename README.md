@@ -1,5 +1,12 @@
 # Mercado Cercano
 
+## Manual de usuario
+
+Consulta el [manual de usuario completo](docs/manual-de-usuario.md) para
+operar la tienda como cliente, operador de pedidos o administrador. Incluye
+instrucciones por pantalla, pagos, entregas, devoluciones, promociones,
+reportes, usuarios y solucion de problemas.
+
 Base de desarrollo para una tienda ecommerce colombiana con portal de
 administración. La aplicación se está construyendo por fases; incluye una API
 ASP.NET Core, una interfaz Angular y persistencia SQLite controlada por

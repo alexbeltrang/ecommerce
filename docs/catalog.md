@@ -1,5 +1,8 @@
 # Catalogo y portal administrativo
 
+Para instrucciones de operacion paso a paso, consulta el
+[manual de usuario completo](manual-de-usuario.md).
+
 ## Pantallas Angular
 
 | Ruta | Acceso | Funcion |
